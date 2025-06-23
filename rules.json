@@ -9,12 +9,12 @@
       "transport_protocol": "UDP"
     },
     {
-      "source_ip": "10.0.0.4",
-      "destination_ip": "10.0.0.2"
+      "source_mac": "00:00:00:00:00:02",
+      "destination_mac": "00:00:00:00:00:04"
     },
     {
-      "source_ip": "10.0.0.2",
-      "destination_ip": "10.0.0.4"
+      "source_mac": "00:00:00:00:00:04",
+      "destination_mac": "00:00:00:00:00:02"
     }
   ]
 }

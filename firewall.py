@@ -16,7 +16,10 @@ log = core . getLogger ()
 DESTINATION_PORT_LABEL = "destination_port"
 SOURCE_IP_LABEL = "source_ip"
 DESTINATION_IP_LABEL = "destination_ip"
+SOURCE_MAC_LABEL = "source_mac"
+DESTINATION_MAC_LABEL = "destination_mac"
 TRANSPORT_PROTOCOL_LABEL = "transport_protocol"
+
 #FILENAME_RULES = "rules.json"
 FILENAME_RULES = os.path.join(os.path.dirname(__file__), "rules.json")
 
@@ -40,6 +43,10 @@ class Firewall(EventMixin) :
             rule.match.nw_src = IPAddr(rule_data[SOURCE_IP_LABEL])
         if DESTINATION_IP_LABEL in rule_data:
             rule.match.nw_dst = IPAddr(rule_data[DESTINATION_IP_LABEL])
+        if SOURCE_MAC_LABEL in rule_data:
+            rule.match._dl_src = EthAddr(rule_data[SOURCE_MAC_LABEL])
+        if DESTINATION_MAC_LABEL in rule_data:
+            rule.match._dl_dst = EthAddr(rule_data[DESTINATION_MAC_LABEL])
         if TRANSPORT_PROTOCOL_LABEL in rule_data:
             rule.match.nw_proto = rule_data[TRANSPORT_PROTOCOL_LABEL]
 
