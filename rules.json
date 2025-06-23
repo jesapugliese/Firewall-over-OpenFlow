@@ -1,20 +1,25 @@
 {
   "rules": [
     {
-      "destination_port": 80
-    },
-    {
-      "source_ip": "10.0.0.1",
-      "destination_port": 5001,
+      "dst_port": 80,
+      "ip_version": "v4",
       "transport_protocol": "UDP"
     },
     {
-      "source_mac": "00:00:00:00:00:02",
-      "destination_mac": "00:00:00:00:00:04"
+      "src_ip": "10.0.0.1",
+      "dst_port": 5001,
+      "transport_protocol": "UDP",
+      "ip_version": "v4"
     },
     {
-      "source_mac": "00:00:00:00:00:04",
-      "destination_mac": "00:00:00:00:00:02"
+      "src_ip": "10.0.0.2",
+      "dst_ip": "10.0.0.4",
+      "ip_version": "v4"
+    },
+    {
+      "src_ip": "10.0.0.4",
+      "dst_ip": "10.0.0.2",
+      "ip_version": "v4"
     }
   ]
 }

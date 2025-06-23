@@ -1,67 +1,103 @@
-# Coursera :
-# - Software Defined Networking ( SDN ) course
-# -- Programming Assignment : Layer -2 Firewall Application Professor : Nick Feamster
-# Teaching Assistant : Arpit Gupta
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
 from pox.lib.revent import *
 from pox.lib.util import dpidToStr
 from pox.lib.addresses import EthAddr, IPAddr
+import pox.lib.packet as pkt
 import json
-import os
 
+log = core.getLogger ()
 
-log = core . getLogger ()
+MAIN_SWITCH_ID = 1
 
-DESTINATION_PORT_LABEL = "destination_port"
-SOURCE_IP_LABEL = "source_ip"
-DESTINATION_IP_LABEL = "destination_ip"
-SOURCE_MAC_LABEL = "source_mac"
-DESTINATION_MAC_LABEL = "destination_mac"
+IPv4_CONFIG = "v4"
+IPv6_CONFIG = "v6"
+UDP_PROTOCOL = "UDP"
+TCP_PROTOCOL = "TCP"
+
+IP_LABEL = "ip_version"
+PORT_LABEL = "dst_port"
+SRC_IP_LABEL = "src_ip"
+DST_IP_LABEL = "dst_ip"
+SRC_MAC_LABEL = "src_mac"
+DST_MAC_LABEL = "dst_mac"
 TRANSPORT_PROTOCOL_LABEL = "transport_protocol"
 
-#FILENAME_RULES = "rules.json"
-FILENAME_RULES = os.path.join(os.path.dirname(__file__), "rules.json")
+def _get_transport_protocol(protocol):
+    if protocol == UDP_PROTOCOL:
+        return pkt.ipv4.UDP_PROTOCOL
+    elif protocol == TCP_PROTOCOL:
+        return pkt.ipv4.TCP_PROTOCOL
+    return None
 
-class Firewall(EventMixin) :
-    def __init__ ( self ) :
-        self.ofp_rules = []
+def _get_ip_version(version):
+    if version == IPv4_CONFIG:
+        return pkt.ethernet.IP_TYPE
+    elif version == IPv6_CONFIG:
+        return pkt.ethernet.IPV6_TYPE
+    return None
+
+def _read_field(rule, field):
+    if field in rule:
+        if field == IP_LABEL:
+            return _get_ip_version(rule[field])
+        elif field == TRANSPORT_PROTOCOL_LABEL:
+            return _get_transport_protocol(rule[field])
+        elif field == SRC_IP_LABEL or field == DST_IP_LABEL:
+            return IPAddr(rule[field])
+        elif field == SRC_MAC_LABEL or field == DST_MAC_LABEL:
+            return EthAddr(rule[field])
+        elif field == PORT_LABEL:
+            return int(rule[field])
+    return None
+
+def _build_rule(port=None, src_ip=None, dst_ip=None, src_mac=None, dst_mac=None, transport_protocol=None, ip_protocol=IPv6_CONFIG):
+    rule = of.ofp_flow_mod()
+    rule.match.dl_type = ip_protocol
+    rule.match.tp_dst = port
+    rule.match.nw_src = src_ip
+    rule.match.nw_dst = dst_ip
+    rule.match.dl_dst = src_mac
+    rule.match.dl_src = dst_mac
+    rule.match.nw_proto = transport_protocol
+
+    return rule
+
+def _read_rules_file(filename):
+    file = open(filename)
+    config = json.load(file)
+    file.close()
+    return config["rules"]
+
+class Firewall (EventMixin):
+    def __init__ (self):
         self.listenTo(core.openflow)
-        log.debug( "Enabling Firewall Module " )
-        self.setup_rules()
-
-    def setup_rules(self):
-        rules_data= self.deserialize_rules()
-        for rule_data in rules_data:
-            self.ofp_rules.append(self.rule(rule_data))
-
-    def rule(self, rule_data):
-        rule = of.ofp_flow_mod()
-        if DESTINATION_PORT_LABEL in rule_data:
-            rule.match.tp_dst = int(rule_data[DESTINATION_PORT_LABEL])
-        if SOURCE_IP_LABEL in rule_data:
-            rule.match.nw_src = IPAddr(rule_data[SOURCE_IP_LABEL])
-        if DESTINATION_IP_LABEL in rule_data:
-            rule.match.nw_dst = IPAddr(rule_data[DESTINATION_IP_LABEL])
-        if SOURCE_MAC_LABEL in rule_data:
-            rule.match._dl_src = EthAddr(rule_data[SOURCE_MAC_LABEL])
-        if DESTINATION_MAC_LABEL in rule_data:
-            rule.match._dl_dst = EthAddr(rule_data[DESTINATION_MAC_LABEL])
-        if TRANSPORT_PROTOCOL_LABEL in rule_data:
-            rule.match.nw_proto = rule_data[TRANSPORT_PROTOCOL_LABEL]
-
-        return rule
-
-    def deserialize_rules(self):#-> list[dict]
-        file = open(FILENAME_RULES)
-        config = json.load(file)
-        file.close()
-        return config["rules"]
-
-    def _handle_ConnectionUp(self,event) :
-        log.info("ConnectionUp for switch {}: ".format(dpidToStr(event.dpid)))
-        for rule in self.ofp_rules:         
+        self._set_rules('rules.json')
+        log.debug("Enabling Firewall Module")
+        
+    def _handle_ConnectionUp (self , event):
+        log.info("Switch {} is connected with controller: ".format(event.dpid))
+        if event.dpid == self.swith_id: 
+            self._load_rules(event)
+    
+    def _load_rules(self, event):
+        for rule in self.rules:
+            rule = _build_rule(port=_read_field(rule, PORT_LABEL), 
+                               src_ip=_read_field(rule, SRC_IP_LABEL), 
+                               dst_ip=_read_field(rule, DST_IP_LABEL),
+                               src_mac=_read_field(rule, SRC_MAC_LABEL),
+                               dst_mac=_read_field(rule, DST_MAC_LABEL),
+                               transport_protocol=_read_field(rule, TRANSPORT_PROTOCOL_LABEL), 
+                               ip_protocol=_read_field(rule, IP_LABEL))
             event.connection.send(rule)
+    
+        log.info("Firewall rules installed on %s switch", dpidToStr(event.dpid))  
 
-def launch() :
+    def _set_rules(self, filename):
+        self.swith_id = MAIN_SWITCH_ID 
+        self.rules = _read_rules_file(filename)
+        for rule, i in enumerate(self.rules):
+            print("Rule {}: {}".format(rule, i))
+    
+def launch():
     core.registerNew(Firewall)
