@@ -6,7 +6,7 @@ from pox.core import core
 import pox.openflow.libopenflow_01 as of
 from pox.lib.revent import *
 from pox.lib.util import dpidToStr
-#from pox.lib.addresses import EthAddr
+from pox.lib.addresses import EthAddr, IPAddr
 import json
 import os
 
@@ -35,11 +35,11 @@ class Firewall(EventMixin) :
     def rule(self, rule_data):
         rule = of.ofp_flow_mod()
         if DESTINATION_PORT_LABEL in rule_data:
-            rule.match.tp_dst = rule_data[DESTINATION_PORT_LABEL]
+            rule.match.tp_dst = int(rule_data[DESTINATION_PORT_LABEL])
         if SOURCE_IP_LABEL in rule_data:
-            rule.match.nw_src = rule_data[SOURCE_IP_LABEL]
+            rule.match.nw_src = IPAddr(rule_data[SOURCE_IP_LABEL])
         if DESTINATION_IP_LABEL in rule_data:
-            rule.match.nw_dst = rule_data[DESTINATION_IP_LABEL]
+            rule.match.nw_dst = IPAddr(rule_data[DESTINATION_IP_LABEL])
         if TRANSPORT_PROTOCOL_LABEL in rule_data:
             rule.match.nw_proto = rule_data[TRANSPORT_PROTOCOL_LABEL]
 
@@ -53,7 +53,7 @@ class Firewall(EventMixin) :
 
     def _handle_ConnectionUp(self,event) :
         log.info("ConnectionUp for switch {}: ".format(dpidToStr(event.dpid)))
-        for rule in self.ofp_rules:
+        for rule in self.ofp_rules:         
             event.connection.send(rule)
 
 def launch() :
