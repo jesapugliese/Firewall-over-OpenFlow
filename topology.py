@@ -12,7 +12,7 @@ class Topology(Topo):
             # Crear hosts
             hosts = []
             for host in range(HOSTS_COUNT):
-                hosts.append(self.addHost("host%s" % host))
+                hosts.append(self.addHost("host%s" % (host + 1)))
     
             # Crear switches
             switches = []
