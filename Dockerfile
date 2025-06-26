@@ -33,7 +33,7 @@ COPY firewall.py /pox/ext/firewall.py
 COPY topology.py /pox/topology.py
 COPY rules.json /pox/rules.json
 COPY firewall.sh /pox/firewall.sh
-COPY topology.sh /pox/topology.sh
+
 
 # Comando por defecto
 CMD ["/bin/bash"]
