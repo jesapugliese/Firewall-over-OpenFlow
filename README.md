@@ -73,18 +73,6 @@ mn --custom /pox/ext/topology.py --topo topologia,switches_count=3 --mac --arp -
 
 ---
 
-## Cómo correr la Topología
-
-En una terminal:
-
-```python
-sudo mn --custom topology.py --topo topo,switches_count=3 --arp --mac --controller remote
-```
-
-```python
-mn --custom /pox/ext/topology.py --topo topologia,n_switches=1 --mac --arp --switch ovsk --controller remote
-```
-
 # Nuestros hosts
 
 Topología que se puede ver desde Mininet ejecutando `links`
