@@ -1,25 +1,24 @@
 {
   "rules": [
     {
-      "dst_port": 80,
-      "ip_version": "v4",
+      "name": "Se deben descartar todos los mensajes cuyo puerto destino sea 80.",
+      "dst_port": 80
+    },
+    {
+      "name":"Se deben descartar todos los mensajes que provengan del host 1, tengan como puerto destino el 5001, y esten utilizando el protocolo UDP",
+      "src_mac": "00:00:00:00:00:01",
+      "dst_port": 5001,
       "transport_protocol": "UDP"
     },
     {
-      "src_ip": "10.0.0.1",
-      "dst_port": 5001,
-      "transport_protocol": "UDP",
-      "ip_version": "v4"
+      "name": "Dos hosts no se pueden comunicar.",
+      "src_mac": "00:00:00:00:00:02",
+      "dst_mac": "00:00:00:00:00:04"
     },
     {
-      "src_ip": "10.0.0.2",
-      "dst_ip": "10.0.0.4",
-      "ip_version": "v4"
-    },
-    {
-      "src_ip": "10.0.0.4",
-      "dst_ip": "10.0.0.2",
-      "ip_version": "v4"
+      "name": "Dos hosts no se pueden comunicar.",
+      "src_mac": "00:00:00:00:00:04",
+      "dst_mac": "00:00:00:00:00:02"
     }
   ]
 }
