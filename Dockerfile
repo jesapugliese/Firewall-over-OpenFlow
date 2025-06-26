@@ -30,8 +30,10 @@ RUN git clone http://github.com/noxrepo/pox /pox && \
 
 # Copiar archivos-
 COPY firewall.py /pox/ext/firewall.py
-COPY topology.py /pox/ext/topology.py
+COPY topology.py /pox/topology.py
 COPY rules.json /pox/rules.json
+COPY firewall.sh /pox/firewall.sh
+COPY topology.sh /pox/topology.sh
 
 # Comando por defecto
 CMD ["/bin/bash"]
