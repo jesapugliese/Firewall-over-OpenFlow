@@ -1,103 +1,106 @@
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
-from pox.lib.revent import *
+from pox.lib.revent import EventMixin
 from pox.lib.util import dpidToStr
-from pox.lib.addresses import EthAddr, IPAddr
-import pox.lib.packet as pkt
+from pox.lib.addresses import EthAddr
 import json
+import pox.lib.packet as pkt
 
-log = core.getLogger ()
+log = core.getLogger()
 
-MAIN_SWITCH_ID = 1
-
-IPv4_CONFIG = "v4"
-IPv6_CONFIG = "v6"
-UDP_PROTOCOL = "UDP"
-TCP_PROTOCOL = "TCP"
-
-IP_LABEL = "ip_version"
-PORT_LABEL = "dst_port"
-SRC_IP_LABEL = "src_ip"
-DST_IP_LABEL = "dst_ip"
-SRC_MAC_LABEL = "src_mac"
-DST_MAC_LABEL = "dst_mac"
+FILENAME_RULES = "rules.json"
+SOURCE_MAC_LABEL = "src_mac"
+DESTINATION_MAC_LABEL = "dst_mac"
+DESTINATION_PORT_LABEL = "dst_port"
 TRANSPORT_PROTOCOL_LABEL = "transport_protocol"
+IP_VERSION_LABEL = "ip_version"
 
-def _get_transport_protocol(protocol):
-    if protocol == UDP_PROTOCOL:
-        return pkt.ipv4.UDP_PROTOCOL
-    elif protocol == TCP_PROTOCOL:
-        return pkt.ipv4.TCP_PROTOCOL
-    return None
+UDP_UPPER = "UDP"
+TCP_UPPER = "TCP"
+IPV4_UPPER = "IPV4"
+IPV6_UPPER = "IPV6"
 
-def _get_ip_version(version):
-    if version == IPv4_CONFIG:
-        return pkt.ethernet.IP_TYPE
-    elif version == IPv6_CONFIG:
-        return pkt.ethernet.IPV6_TYPE
-    return None
-
-def _read_field(rule, field):
-    if field in rule:
-        if field == IP_LABEL:
-            return _get_ip_version(rule[field])
-        elif field == TRANSPORT_PROTOCOL_LABEL:
-            return _get_transport_protocol(rule[field])
-        elif field == SRC_IP_LABEL or field == DST_IP_LABEL:
-            return IPAddr(rule[field])
-        elif field == SRC_MAC_LABEL or field == DST_MAC_LABEL:
-            return EthAddr(rule[field])
-        elif field == PORT_LABEL:
-            return int(rule[field])
-    return None
-
-def _build_rule(port=None, src_ip=None, dst_ip=None, src_mac=None, dst_mac=None, transport_protocol=None, ip_protocol=IPv6_CONFIG):
-    rule = of.ofp_flow_mod()
-    rule.match.dl_type = ip_protocol
-    rule.match.tp_dst = port
-    rule.match.nw_src = src_ip
-    rule.match.nw_dst = dst_ip
-    rule.match.dl_dst = src_mac
-    rule.match.dl_src = dst_mac
-    rule.match.nw_proto = transport_protocol
-
-    return rule
-
-def _read_rules_file(filename):
-    file = open(filename)
-    config = json.load(file)
-    file.close()
-    return config["rules"]
-
-class Firewall (EventMixin):
-    def __init__ (self):
+class Firewall(EventMixin):
+    def __init__(self):
+        self.ofp_rules = []
         self.listenTo(core.openflow)
-        self._set_rules('rules.json')
-        log.debug("Enabling Firewall Module")
-        
-    def _handle_ConnectionUp (self , event):
-        log.info("Switch {} is connected with controller: ".format(event.dpid))
-        if event.dpid == self.swith_id: 
-            self._load_rules(event)
-    
-    def _load_rules(self, event):
-        for rule in self.rules:
-            rule = _build_rule(port=_read_field(rule, PORT_LABEL), 
-                               src_ip=_read_field(rule, SRC_IP_LABEL), 
-                               dst_ip=_read_field(rule, DST_IP_LABEL),
-                               src_mac=_read_field(rule, SRC_MAC_LABEL),
-                               dst_mac=_read_field(rule, DST_MAC_LABEL),
-                               transport_protocol=_read_field(rule, TRANSPORT_PROTOCOL_LABEL), 
-                               ip_protocol=_read_field(rule, IP_LABEL))
-            event.connection.send(rule)
-    
-        log.info("Firewall rules installed on %s switch", dpidToStr(event.dpid))  
+        log.info("Enabling Firewall Module")
+        self.protocols = [(UDP_UPPER, pkt.ipv4.UDP_PROTOCOL), (TCP_UPPER, pkt.ipv4.TCP_PROTOCOL)] 
+        self.ip_versions = [(IPV4_UPPER, pkt.ethernet.IP_TYPE), (IPV6_UPPER, pkt.ethernet.IPV6_TYPE)]
+        self.setup_rules()
 
-    def _set_rules(self, filename):
-        self.swith_id = MAIN_SWITCH_ID 
-        self.rules = _read_rules_file(filename)
-        for rule, i in enumerate(self.rules):
-            print("Rule {}: {}".format(rule, i))
-    
+    def setup_rules(self):
+        log.info("Setting up rules")
+        rules_data = self.deserialize_rules()
+        for rule_data in rules_data:
+            log.info("Processing rule: {}".format(rule_data["name"]))
+
+            rules = [self.rule(rule_data)]
+
+            added_rules = []
+            for rule in rules:
+                if rule.match.nw_proto is None:
+                    # Adding the rule for each protocol
+                    rule.match.nw_proto = self.protocols[0][1]
+                    for _, value in self.protocols[1:]:
+                        added_rule_data = rule_data.copy()
+                        added_rule = self.rule(added_rule_data)
+                        added_rule.match.nw_proto = value
+                        added_rules.append(added_rule)
+            rules.extend(added_rules)
+
+            added_rules = []
+            for rule in rules:
+                if rule.match.dl_type is None:
+                    # Adding the rule for each IP version
+                    rule.match.dl_type = self.ip_versions[0][1]
+                    for _, value in self.ip_versions[1:]:
+                        added_rule_data = rule_data.copy()
+                        added_rule = self.rule(added_rule_data)
+                        added_rule.match.dl_type = value
+                        added_rules.append(added_rule)
+            rules.extend(added_rules)
+
+            self.ofp_rules.extend(rules)
+
+    def rule(self, rule_data):
+        rule = of.ofp_flow_mod()
+
+        if SOURCE_MAC_LABEL in rule_data:
+            rule.match.dl_src = EthAddr(rule_data[SOURCE_MAC_LABEL])
+
+        if DESTINATION_MAC_LABEL in rule_data:
+            rule.match.dl_dst = EthAddr(rule_data[DESTINATION_MAC_LABEL])
+
+        if DESTINATION_PORT_LABEL in rule_data:
+            rule.match.tp_dst = rule_data[DESTINATION_PORT_LABEL]
+
+        if TRANSPORT_PROTOCOL_LABEL in rule_data:
+            protocol = rule_data[TRANSPORT_PROTOCOL_LABEL]
+            for name, value in self.protocols:
+                if protocol.upper() == name:
+                    rule.match.nw_proto = value
+                    break
+
+        if IP_VERSION_LABEL in rule_data:
+            ip_version = rule_data[IP_VERSION_LABEL]
+            for name, value in self.ip_versions:
+                if ip_version.upper() == name:
+                    rule.match.dl_type = value
+                    break
+
+        return rule
+
+    def deserialize_rules(self):
+        with open(FILENAME_RULES) as file:
+            config = json.load(file)
+        return config["rules"]
+
+    def _handle_ConnectionUp(self, event):
+        log.info("ConnectionUp for switch {}: ".format(dpidToStr(event.dpid)))
+        for rule in self.ofp_rules:
+            event.connection.send(rule)
+
+
 def launch():
     core.registerNew(Firewall)
