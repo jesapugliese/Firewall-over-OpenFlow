@@ -1,4 +1,5 @@
-# redes-tp2-openflow
+# Firewall-over-OpenFlow
+
 # Cómo ejecutar el programa
 
 Utilizamos Docker que ya incluye todo el ambiente necesario para poder ejecutarlo. Sólo necestamos externo a docker el ovs.
